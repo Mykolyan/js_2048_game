@@ -6,6 +6,13 @@ const game = new Game();
 
 let gameStarted = false;
 
+let previousBoard = [
+  [0, 0, 0, 0],
+  [0, 0, 0, 0],
+  [0, 0, 0, 0],
+  [0, 0, 0, 0],
+];
+
 // Write your code here
 
 // Updating state function
@@ -44,46 +51,116 @@ function displayBoard() {
     const row = Math.floor(index / 4);
     const col = index % 4;
     const cellValue = board[row][col];
+    const prevValue = previousBoard[row][col];
 
     const currentClass = Array.from(cell.classList).find(function (className) {
-      return className.startsWith('field-cell--');
+      return (
+        className.startsWith('field-cell--') &&
+        className !== 'field-cell--spawn' &&
+        className !== 'field-cell--merge'
+      );
     });
 
     if (currentClass) {
       cell.classList.remove(currentClass);
     }
 
+    cell.classList.remove('field-cell--spawn', 'field-cell--merge');
+
     if (cellValue !== 0) {
       cell.classList.add(`field-cell--${cellValue}`);
     }
 
     cell.textContent = cellValue === 0 ? '' : cellValue;
+
+    if (cellValue !== 0 && cellValue !== prevValue) {
+      // Force a reflow so the animation restarts even if the same
+      // animation class was applied to this cell on a previous render.
+      void cell.offsetWidth;
+
+      cell.classList.add(
+        prevValue === 0 ? 'field-cell--spawn' : 'field-cell--merge',
+      );
+    }
   });
+
+  previousBoard = board.map((boardRow) => boardRow.slice());
 }
 
-// movement events
-document.addEventListener('keydown', (e) => {
+// movement handler shared by keyboard and swipe input
+function handleMove(direction) {
   if (!gameStarted) {
     return;
   }
 
-  switch (e.key) {
-    case 'ArrowLeft':
+  switch (direction) {
+    case 'left':
       game.moveLeft();
       break;
-    case 'ArrowRight':
+    case 'right':
       game.moveRight();
       break;
-    case 'ArrowUp':
+    case 'up':
       game.moveUp();
       break;
-    case 'ArrowDown':
+    case 'down':
       game.moveDown();
       break;
     default:
       return;
   }
   updateGameState();
+}
+
+// movement events (keyboard)
+document.addEventListener('keydown', (e) => {
+  switch (e.key) {
+    case 'ArrowLeft':
+      handleMove('left');
+      break;
+    case 'ArrowRight':
+      handleMove('right');
+      break;
+    case 'ArrowUp':
+      handleMove('up');
+      break;
+    case 'ArrowDown':
+      handleMove('down');
+      break;
+    default:
+      break;
+  }
+});
+
+// movement events (swipe, mobile)
+const SWIPE_THRESHOLD = 30;
+
+let touchStartX = 0;
+let touchStartY = 0;
+
+const gameField = document.querySelector('.game-field');
+
+gameField.addEventListener('touchstart', (e) => {
+  const touch = e.changedTouches[0];
+
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+});
+
+gameField.addEventListener('touchend', (e) => {
+  const touch = e.changedTouches[0];
+  const deltaX = touch.clientX - touchStartX;
+  const deltaY = touch.clientY - touchStartY;
+
+  if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < SWIPE_THRESHOLD) {
+    return;
+  }
+
+  if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    handleMove(deltaX > 0 ? 'right' : 'left');
+  } else {
+    handleMove(deltaY > 0 ? 'down' : 'up');
+  }
 });
 
 // Start game
